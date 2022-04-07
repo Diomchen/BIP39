@@ -21,6 +21,8 @@
 
 package io.github.novacrypto.bip39;
 
+import org.spongycastle.crypto.digests.SM3Digest;
+
 import java.util.Arrays;
 
 import static io.github.novacrypto.bip39.ByteUtils.next11Bits;
@@ -78,7 +80,19 @@ public final class MnemonicGenerator {
     public void createMnemonic(
             final byte[] entropy,
             final Target target) {
-        final int[] wordIndexes = wordIndexes(entropy);
+        final int[] wordIndexes = wordIndexes(entropy,CommonConstant.SHA256_TYPE);
+        try {
+            createMnemonic(wordIndexes, target);
+        } finally {
+            Arrays.fill(wordIndexes, 0);
+        }
+    }
+
+    public void createMnemonic(
+            final byte[] entropy,
+            final Target target,
+            final int algoType) {
+        final int[] wordIndexes = wordIndexes(entropy,algoType);
         try {
             createMnemonic(wordIndexes, target);
         } finally {
@@ -96,12 +110,18 @@ public final class MnemonicGenerator {
         }
     }
 
-    private static int[] wordIndexes(byte[] entropy) {
+
+    private static int[] wordIndexes(byte[] entropy,Integer algoType) {
         final int ent = entropy.length * 8;
         entropyLengthPreChecks(ent);
 
         final byte[] entropyWithChecksum = Arrays.copyOf(entropy, entropy.length + 1);
-        entropyWithChecksum[entropy.length] = firstByteOfSha256(entropy);
+        if(algoType.equals(CommonConstant.SHA256_TYPE)){
+            entropyWithChecksum[entropy.length] = firstByteOfSha256(entropy);
+        }
+        else if(algoType.equals(CommonConstant.SM3_TYPE)){
+            entropyWithChecksum[entropy.length] = firstByteOfSM3(entropy);
+        }
 
         //checksum length
         final int cs = ent / 32;
@@ -118,6 +138,15 @@ public final class MnemonicGenerator {
 
     static byte firstByteOfSha256(final byte[] entropy) {
         final byte[] hash = sha256(entropy);
+        final byte firstByte = hash[0];
+        Arrays.fill(hash, (byte) 0);
+        return firstByte;
+    }
+
+    static byte firstByteOfSM3(final byte[] entropy){
+        SM3Digest digest = new SM3Digest();
+        digest.update(entropy,0,entropy.length);
+        final byte[] hash = new byte[digest.getDigestSize()];
         final byte firstByte = hash[0];
         Arrays.fill(hash, (byte) 0);
         return firstByte;
